@@ -1,6 +1,5 @@
 FROM node:18-slim
 
-# LibreOffice install karo
 RUN apt-get update && \
     apt-get install -y \
     libreoffice \
@@ -17,6 +16,8 @@ COPY package*.json ./
 RUN npm install
 
 COPY . .
+
+RUN mkdir -p uploads outputs
 
 EXPOSE 3000
 
