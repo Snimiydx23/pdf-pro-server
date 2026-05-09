@@ -26,8 +26,8 @@ app.use(cors());
 // =====================================================================
 // CONFIG
 // =====================================================================
-const ADOBE_CLIENT_ID     = process.env.ADOBE_CLIENT_ID     || 'YOUR_CLIENT_ID';
-const ADOBE_CLIENT_SECRET = process.env.ADOBE_CLIENT_SECRET || 'YOUR_CLIENT_SECRET';
+const ADOBE_CLIENT_ID     = process.env.ADOBE_CLIENT_ID     || 'fbfe27005aac4a5e8e7aca3384bbd072';
+const ADOBE_CLIENT_SECRET = process.env.ADOBE_CLIENT_SECRET || 'p8e-2zJ3HpxnDa3CnBSnIZ2SvJ-7xJHn2I18';
 
 const upload = multer({ dest: 'uploads/' });
 
