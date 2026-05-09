@@ -4,8 +4,8 @@ const { exec } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const cors = require('cors');
-const ILovePDFApi = require('@ilovepdf/ilovepdf-nodejs');
-const ILovePDFFile = require('@ilovepdf/ilovepdf-nodejs/ILovePDFFile');
+const ILovePDFApi = require('ilovepdf-nodejs');
+const ILovePDFFile = require('ilovepdf-nodejs/ILovePDFFile');
 
 const app = express();
 app.use(cors());
