@@ -5,7 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const cors = require('cors');
 
-// Adobe PDF Services
+// Adobe PDF Services SDK v4
 const {
   ServicePrincipalCredentials,
   PDFServices,
@@ -13,8 +13,10 @@ const {
   ExportPDFJob,
   ExportPDFParams,
   ExportPDFTargetFormat,
+  ExportPDFResult,       // ✅ Fix: resultType ke liye ye use karein
   CreatePDFJob,
   CreatePDFParams,
+  CreatePDFResult,       // ✅ Fix: resultType ke liye ye use karein
   SDKError,
   ServiceUsageError,
   ServiceApiError
@@ -79,39 +81,34 @@ function convertWithLibreOffice(inputPath, outputDir, format) {
 
 // =====================================================================
 // HELPER: Adobe Export PDF (PDF → Word/PPT/Excel)
+// ✅ Fix: ExportPDFResult class directly pass karein, ExportPDFJob.resultType nahi
 // =====================================================================
 async function adobeExportPDF(inputPath, targetFormat) {
   const credentials = getAdobeCredentials();
   const pdfServices = new PDFServices({ credentials });
 
-  // Upload input file
   const inputStream = fs.createReadStream(inputPath);
   const inputAsset = await pdfServices.upload({
     readStream: inputStream,
     mimeType: MimeType.PDF
   });
 
-  // Set export params
   const params = new ExportPDFParams({ targetFormat });
-
-  // Create and submit job
   const job = new ExportPDFJob({ inputAsset, params });
   const pollingURL = await pdfServices.submit({ job });
 
-  // Poll for result
+  // ✅ Fix: resultType = ExportPDFResult (class reference), not ExportPDFJob.resultType
   const pdfServicesResponse = await pdfServices.getJobResult({
     pollingURL,
-    resultType: ExportPDFJob.resultType
+    resultType: ExportPDFResult
   });
 
-  // Save output
   const resultAsset = pdfServicesResponse.result.asset;
   const streamAsset = await pdfServices.getContent({ asset: resultAsset });
 
   const outputDir = path.resolve('outputs', Date.now().toString());
   fs.mkdirSync(outputDir, { recursive: true });
 
-  // Determine extension
   const extMap = {
     [ExportPDFTargetFormat.DOCX]: '.docx',
     [ExportPDFTargetFormat.PPTX]: '.pptx',
@@ -120,7 +117,6 @@ async function adobeExportPDF(inputPath, targetFormat) {
   const ext = extMap[targetFormat] || '.docx';
   const outputFile = path.join(outputDir, 'output' + ext);
 
-  // Write to file
   const writeStream = fs.createWriteStream(outputFile);
   await new Promise((resolve, reject) => {
     streamAsset.readStream.pipe(writeStream);
@@ -133,6 +129,7 @@ async function adobeExportPDF(inputPath, targetFormat) {
 
 // =====================================================================
 // HELPER: Adobe Create PDF (Office → PDF)
+// ✅ Fix: CreatePDFResult class directly pass karein
 // =====================================================================
 async function adobeCreatePDF(inputPath, mimeType) {
   const credentials = getAdobeCredentials();
@@ -148,9 +145,10 @@ async function adobeCreatePDF(inputPath, mimeType) {
   const job = new CreatePDFJob({ inputAsset, params });
   const pollingURL = await pdfServices.submit({ job });
 
+  // ✅ Fix: resultType = CreatePDFResult
   const pdfServicesResponse = await pdfServices.getJobResult({
     pollingURL,
-    resultType: CreatePDFJob.resultType
+    resultType: CreatePDFResult
   });
 
   const resultAsset = pdfServicesResponse.result.asset;
@@ -174,7 +172,7 @@ async function adobeCreatePDF(inputPath, mimeType) {
 // TO PDF ROUTES
 // =====================================================================
 
-// WORD to PDF — Adobe (perfect formatting)
+// WORD to PDF — Adobe (perfect formatting) → LibreOffice fallback
 app.post('/convert/word-to-pdf', upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   const inputPath = path.resolve(req.file.path);
@@ -183,7 +181,6 @@ app.post('/convert/word-to-pdf', upload.single('file'), async (req, res) => {
   try {
     const originalName = path.basename(req.file.originalname, path.extname(req.file.originalname));
 
-    // Try Adobe first, fallback to LibreOffice
     if (ADOBE_CLIENT_ID !== 'YOUR_CLIENT_ID') {
       try {
         const { outputFile, outputDir: oDir } = await adobeCreatePDF(inputPath, MimeType.DOCX);
@@ -197,7 +194,6 @@ app.post('/convert/word-to-pdf', upload.single('file'), async (req, res) => {
       }
     }
 
-    // Fallback: LibreOffice
     outputDir = path.resolve('outputs', Date.now().toString());
     fs.mkdirSync(outputDir, { recursive: true });
     const outFile = await convertWithLibreOffice(inputPath, outputDir, 'pdf');
@@ -213,7 +209,7 @@ app.post('/convert/word-to-pdf', upload.single('file'), async (req, res) => {
   }
 });
 
-// EXCEL to PDF — Adobe
+// EXCEL to PDF — Adobe → LibreOffice fallback
 app.post('/convert/excel-to-pdf', upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   const inputPath = path.resolve(req.file.path);
@@ -250,7 +246,7 @@ app.post('/convert/excel-to-pdf', upload.single('file'), async (req, res) => {
   }
 });
 
-// PPT to PDF — Adobe
+// PPT to PDF — Adobe → LibreOffice fallback
 app.post('/convert/ppt-to-pdf', upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   const inputPath = path.resolve(req.file.path);
@@ -288,7 +284,7 @@ app.post('/convert/ppt-to-pdf', upload.single('file'), async (req, res) => {
 });
 
 // =====================================================================
-// FROM PDF ROUTES — Adobe Export (perfect quality)
+// FROM PDF ROUTES — Adobe Export
 // =====================================================================
 
 // PDF to WORD
