@@ -24,12 +24,18 @@ const {
 
 const app = express();
 app.use(cors());
+app.use(express.json({ limit: '10mb' }));
 
 // =====================================================================
 // CONFIG
 // =====================================================================
 const ADOBE_CLIENT_ID     = process.env.ADOBE_CLIENT_ID     || 'fbfe27005aac4a5e8e7aca3384bbd072';
 const ADOBE_CLIENT_SECRET = process.env.ADOBE_CLIENT_SECRET || 'p8e-2zJ3HpxnDa3CnBSnIZ2SvJ-7xJHn2I18';
+
+// NVIDIA NIM (build.nvidia.com) — key server par hi rehti hai, browser mein kabhi nahi jaati
+const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY || '';
+const NVIDIA_MODEL   = process.env.NVIDIA_MODEL   || 'nvidia/nemotron-3-ultra-550b-a55b';
+const NVIDIA_URL     = 'https://integrate.api.nvidia.com/v1/chat/completions';
 
 const upload = multer({ dest: 'uploads/' });
 
@@ -49,8 +55,47 @@ app.get('/', (req, res) => {
     service: 'PDF Converter Server',
     status: 'running',
     libreoffice: loStatus,
-    adobe: ADOBE_CLIENT_ID !== 'YOUR_CLIENT_ID' ? 'configured' : 'NOT CONFIGURED'
+    adobe: ADOBE_CLIENT_ID !== 'YOUR_CLIENT_ID' ? 'configured' : 'NOT CONFIGURED',
+    nvidia: NVIDIA_API_KEY ? 'configured' : 'NOT CONFIGURED'
   });
+});
+
+// =====================================================================
+// AI ROUTES — NVIDIA Nemotron (key server par, browser mein nahi)
+// Frontend (AI Summarizer + Translate PDF) is single endpoint ko call karta hai
+// =====================================================================
+app.post('/ai/generate', async (req, res) => {
+  try {
+    const { prompt, max_tokens } = req.body || {};
+    if (!prompt) return res.status(400).json({ error: 'prompt is required' });
+    if (!NVIDIA_API_KEY) return res.status(500).json({ error: 'NVIDIA_API_KEY server par set nahi hai (Render env var check karein)' });
+
+    const nvRes = await fetch(NVIDIA_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + NVIDIA_API_KEY
+      },
+      body: JSON.stringify({
+        model: NVIDIA_MODEL,
+        max_tokens: max_tokens || 1000,
+        temperature: 1,
+        top_p: 0.95,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    const data = await nvRes.json();
+    if (!nvRes.ok) {
+      const msg = data && data.error ? (data.error.message || JSON.stringify(data.error)) : ('NVIDIA API error (' + nvRes.status + ')');
+      return res.status(nvRes.status).json({ error: msg });
+    }
+
+    const text = (data.choices && data.choices[0] && data.choices[0].message) ? data.choices[0].message.content : '';
+    res.json({ text });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // =====================================================================
